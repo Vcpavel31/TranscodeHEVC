@@ -1,2 +1,2 @@
 # TranscodeHEVC
- My first docker countainer transcoding to HEVC using ffmpeg (without nvenc)
+ My first docker container transcoding to HEVC using ffmpeg (without nvenc)
