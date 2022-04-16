@@ -6,6 +6,7 @@ RUN apt update
 RUN apt upgrade -y
 RUN apt install -y ffmpeg
 RUN apt install -y python3-pip
+RUN apt install -y htop
 
 ADD main.py .
 ADD requirements.txt .
