@@ -1,10 +1,20 @@
 import os
 import json
 import subprocess
+import time
 
 import pandas as pd
 import ffmpeg
+import flask
 
+app = flask.Flask(__name__)
+
+
+class DataStore():
+    name = None
+    file = None
+
+data = DataStore()
 
 folder_to_search = '/media/' #'/mnt/SPACE/Movies/Youtube/'
 json_info_file = '/mnt/INFO/Transcode_info.json'
@@ -12,32 +22,69 @@ json_info_file = '/mnt/INFO/Transcode_info.json'
 extensions = ('.avi', '.mkv', '.wmv', '.mp4', '.mpg', '.mpeg', '.mov', '.m4v')
 
 def findExt(folder):
-    matches = []
     return [os.path.join(r, fn)
         for r, ds, fs in os.walk(folder) 
         for fn in fs if fn[fn.rfind('.'):].lower() in extensions]
 
+@app.route('/yield')
+def index():
+    def inner():
+        Start = os.path.getsize(data.file)
+
+        command = ("ffmpeg -n -i "+data.file+" -c:v libx265 -preset slow -x265-params crf=28:bframes=1 -c:a aac "+data.name) 
+        proc = subprocess.Popen(
+            command,             #call something with a lot of output so we can see it
+            shell=True,
+            stdout=subprocess.PIPE
+        )
+
+        for line in iter(proc.stdout.readline,''):
+            time.sleep(1)                           # Don't need this just shows the text streaming
+            yield line.rstrip() + '<br/>\n'
+
+        #proc.wait()
+        Return_Code = proc.returncode
+        print(Return_Code)
+        if(Return_Code != 0):
+            os.remove(data.name)
+            print("Error: "+data.file)
+        else:
+            End = os.path.getsize(data.name)
+            print(Start, End)
+            # Move "name" to "file"
+            os.remove(data.file)
+            os.rename(data.name, data.file)
+
+    return flask.Response(inner(), mimetype='text/html')  # text/html is required for most browsers to show th$
+
 def Transcode(file):
     #print(file)
-    Start = os.path.getsize(file)
+    
     name = ""
     for nazev in file.split(".")[:-1]:
         name += nazev
 
-    name = name.replace(" ", "\ ").replace("  ", " ")+"_transcode.mkv"
-    file = file.replace(" ", "\ ")
+    data.name = name.replace(" ", "\ ").replace("  ", " ")+"_transcode.mkv"
+    data.file = file.replace(" ", "\ ")
 
-    command = ("ffmpeg -n -i "+file+" -c:v libx265 -preset slow -x265-params crf=28:bframes=1 -c:a aac "+name) 
+    app.run(debug=True, port=5000, host='0.0.0.0')
 
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    process.wait()
-    print(process.returncode)
-    End = os.path.getsize(name)
-    print(Start, End)
+    """process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    Return_Code = process.returncode
+    print(Return_Code)
+    if(Return_Code != 0):
+        os.remove(name)
+        print("Error: "+file)
+    else:
+        End = os.path.getsize(name)
+        print(Start, End)
+        # Move "name" to "file"
+        os.remove(file)
+        os.rename(name, file)"""
 
 
 def main():
-
+    
     video_files = findExt(folder_to_search)
     for file in video_files:
         if("Plex Versions" in file or "_transcode" in file):
